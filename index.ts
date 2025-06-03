@@ -1,22 +1,12 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { serve } from "@hono/node-server";
 
-const PORT = parseInt(process.env.PORT || "8900", 10);
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+type Env = {
+  GEMINI_API_KEY: string;
+};
 
-if (!GEMINI_API_KEY || GEMINI_API_KEY === "your_gemini_api_key_here") {
-  console.error(
-    "FATAL ERROR: GEMINI_API_KEY is not set in the environment variables. Please set it and restart the server.",
-  );
-  process.exit(1); // Exit if API key is not set
-}
-
-const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-
-const app = new Hono();
+const app = new Hono<{ Bindings: Env }>();
 
 app.use("/*", cors()); 
 
@@ -26,6 +16,24 @@ app.get("/", (c) => {
 
 app.post("/calculate", async (c) => {
   try {
+    const GEMINI_API_KEY = c.env.GEMINI_API_KEY;
+
+    if (!GEMINI_API_KEY || GEMINI_API_KEY === "your_gemini_api_key_here") {
+      console.error(
+        "FATAL ERROR: GEMINI_API_KEY is not set in the Worker's environment secrets.",
+      );
+      return c.json(
+        {
+          message: "Server configuration error: GEMINI_API_KEY is not set.",
+          status: "error",
+        },
+        500,
+      );
+    }
+
+    const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-preview-05-20" });
+
     const body = await c.req.json();
     const { image, dict_of_vars } = body;
 
@@ -220,13 +228,6 @@ Always convert fractions to decimal format in the result field. Use string value
       500,
     );
   }
-});
-
-console.log(`Server is running on port ${PORT}`);
-
-serve({
-  fetch: app.fetch,
-  port: PORT,
 });
 
 export default app;
